@@ -54,29 +54,36 @@ const BOXJS_KEY_TOKEN = "boxjs.mifan.checkin.mf_token";
   if (typeof $response !== "undefined" && $response) {
     console.log("===== 米饭 Token 捕获 =====");
     try {
-      const body = JSON.parse($response.body);
-      if (body.code === 200 && body.token) {
-        const token = body.token;
+      const rawBody = typeof $response.body === "string" ? $response.body : JSON.stringify($response.body);
+      console.log("原始响应: " + rawBody.substring(0, 300));
+      const body = JSON.parse(rawBody);
+
+      // 尝试多种可能的 Token 字段位置
+      const token = body.token || body.data?.token || body.result || body.access_token || null;
+
+      if (body.code === 200 && token) {
+        const t = token.trim();
         // 追加保存到 BoxJS（BoxJS 面板直接可见）
         const existing = $prefs.valueForKey(BOXJS_KEY_TOKEN) || "";
-        const tokens = existing.split("\n").filter(t => t.trim());
-        if (!tokens.includes(token)) {
-          tokens.push(token);
+        const tokens = existing.split("\n").map(s => s.trim()).filter(s => s);
+        if (!tokens.includes(t)) {
+          tokens.push(t);
           $prefs.setValueForKey(tokens.join("\n"), BOXJS_KEY_TOKEN);
         }
         // 同时写回老 key 保持兼容
-        $prefs.setValueForKey(token, STORAGE_KEY_TOKEN);
-        console.log("✓ Token 已保存到 BoxJS: " + token.substring(0, 30) + "...");
+        $prefs.setValueForKey(t, STORAGE_KEY_TOKEN);
+        console.log("✓ Token 已保存到 BoxJS: " + t.substring(0, 30) + "...");
         $notify(
           "米饭 Token 捕获 ✓",
           "已自动保存到 BoxJS 面板",
           "现有 " + tokens.length + " 个 Token"
         );
       } else {
-        console.log("ℹ 该响应无 token，跳过");
+        console.log("ℹ 未识别到 Token，完整响应: " + rawBody.substring(0, 500));
+        $notify("米饭 Token 捕获 ⚠", "响应格式未识别", "请从浏览器 localStorage 获取 Token");
       }
     } catch (e) {
-      console.log("✗ 解析失败: " + e.message);
+      console.log("✗ 解析失败: " + e.message + " | 原始内容: " + String($response.body).substring(0, 200));
     }
     $done({});
     return;
@@ -124,19 +131,19 @@ function request(method, path, token) {
 async function getSignStatus(token) {
   const data = await request("GET", "event/dailysign/status/", token);
   if (data.code === 200) return data.data;
-  throw new Error(data.data || "查询失败");
+  throw new Error("[" + data.code + "] " + (data.err_desc || data.data || "未知错误"));
 }
 
 async function doSign(token) {
   const data = await request("POST", "event/dailysign/", token);
   if (data.code === 200) return data.gold || 0;
-  throw new Error(data.data || "签到失败");
+  throw new Error("[" + data.code + "] " + (data.err_desc || data.data || "签到失败"));
 }
 
 async function getSignHistory(token) {
   const data = await request("GET", "event/dailysign/recent", token);
   if (data.code === 200) return data.data || [];
-  throw new Error(data.data || "查询失败");
+  throw new Error("[" + data.code + "] " + (data.err_desc || data.data || "查询失败"));
 }
 
 /**
@@ -151,8 +158,8 @@ async function processAccount(token, index) {
     signed = await getSignStatus(token);
     console.log("ℹ " + prefix + " 签到状态: " + (signed ? "已签到 ✓" : "未签到"));
   } catch (e) {
-    console.log("✗ " + prefix + " Token 无效: " + e.message);
-    return prefix + ": ❌ Token 无效";
+    console.log("✗ " + prefix + " " + e.message);
+    return prefix + ": ❌ " + e.message;
   }
 
   if (signed) {
@@ -171,8 +178,8 @@ async function processAccount(token, index) {
     console.log("✓ " + prefix + " 签到成功" + goldStr);
     return prefix + ": ✓ 签到成功" + goldStr;
   } catch (e) {
-    console.log("✗ " + prefix + " 签到失败: " + e.message);
-    return prefix + ": ❌ 签到失败";
+    console.log("✗ " + prefix + " " + e.message);
+    return prefix + ": ❌ " + e.message;
   }
 }
 
@@ -184,7 +191,7 @@ function getTokenList() {
       const [k, v] = pair.split("=");
       argObj[k] = v;
     });
-    if (argObj.token) return [argObj.token];
+    if (argObj.token) return [argObj.token.trim()];
   }
 
   // 2. 从 BoxJS 存储获取（MITM 捕获或 BoxJS 面板写入）
@@ -194,11 +201,11 @@ function getTokenList() {
 
   // 3. 从老 key 获取（兼容旧版本）
   const oldVal = $prefs.valueForKey(STORAGE_KEY_TOKEN) || "";
-  if (oldVal) return [oldVal];
+  if (oldVal) return [oldVal.trim()];
 
   // 4. 从 MF_TOKEN 常量获取
   if (MF_TOKEN) {
-    return MF_TOKEN.split(/[, ]+/).filter(t => t.trim());
+    return MF_TOKEN.split(/[, ]+/).map(t => t.trim()).filter(t => t);
   }
 
   return [];
