@@ -13,18 +13,6 @@
       "icons": [
         "https://mifan.61.com/favicon.ico"
       ],
-      "scripts": [
-        {
-          "name": "检查签到状态",
-          "script": "https://raw.githubusercontent.com/1009394958/mifan-checkin/main/mifan_checkin.js",
-          "arg": "action=status"
-        },
-        {
-          "name": "执行签到",
-          "script": "https://raw.githubusercontent.com/1009394958/mifan-checkin/main/mifan_checkin.js",
-          "arg": "action=sign"
-        }
-      ],
       "settings": [
         {
           "id": "mf_token",
