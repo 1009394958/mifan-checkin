@@ -1,7 +1,7 @@
 {
   "id": "com.mifan.checkin",
   "name": "米饭签到",
-  "desc": "米饭(mifan.61.com)每日签到 - Token管理",
+  "description": "米饭(mifan.61.com)每日签到 - Token管理",
   "author": "@1009394958",
   "icon": "https://mifan.61.com/favicon.ico",
   "settings": [
@@ -10,16 +10,14 @@
       "name": "登录Token",
       "desc": "从浏览器 localStorage.MF_AUTH 获取，或配置 MITM 自动捕获",
       "type": "text",
-      "val": "",
-      "placeholder": "粘贴你的Token"
+      "val": ""
     },
     {
       "id": "mf_username",
       "name": "账号",
       "desc": "淘米账号/手机号（仅显示区分多账号）",
       "type": "text",
-      "val": "",
-      "placeholder": "选填"
+      "val": ""
     }
   ],
   "scripts": [
