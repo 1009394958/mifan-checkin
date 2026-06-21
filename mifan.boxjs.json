@@ -4,32 +4,49 @@
   "description": "米饭(mifan.61.com)每日签到 - Token管理",
   "author": "@1009394958",
   "icon": "https://mifan.61.com/favicon.ico",
-  "settings": [
+  "repo": "https://github.com/1009394958/mifan-checkin",
+  "apps": [
     {
-      "id": "mf_token",
-      "name": "登录Token",
-      "desc": "从浏览器 localStorage.MF_AUTH 获取，或配置 MITM 自动捕获",
-      "type": "text",
-      "val": ""
-    },
-    {
-      "id": "mf_username",
-      "name": "账号",
-      "desc": "淘米账号/手机号（仅显示区分多账号）",
-      "type": "text",
-      "val": ""
-    }
-  ],
-  "scripts": [
-    {
-      "name": "检查签到状态",
-      "url": "https://raw.githubusercontent.com/1009394958/mifan-checkin/main/mifan_checkin.js",
-      "arg": "action=status"
-    },
-    {
-      "name": "执行签到",
-      "url": "https://raw.githubusercontent.com/1009394958/mifan-checkin/main/mifan_checkin.js",
-      "arg": "action=sign"
+      "id": "mifan.checkin",
+      "name": "米饭签到",
+      "keys": ["mf_token", "mf_username"],
+      "author": "@1009394958",
+      "repo": "https://github.com/1009394958/mifan-checkin",
+      "icons": [
+        "https://mifan.61.com/favicon.ico"
+      ],
+      "scripts": [
+        {
+          "name": "检查签到状态",
+          "script": "https://raw.githubusercontent.com/1009394958/mifan-checkin/main/mifan_checkin.js",
+          "arg": "action=status"
+        },
+        {
+          "name": "执行签到",
+          "script": "https://raw.githubusercontent.com/1009394958/mifan-checkin/main/mifan_checkin.js",
+          "arg": "action=sign"
+        }
+      ],
+      "settings": [
+        {
+          "id": "mf_token",
+          "name": "登录Token",
+          "val": "",
+          "type": "text",
+          "desc": "从浏览器 localStorage.MF_AUTH 获取，或配置 MITM 自动捕获",
+          "placeholder": "粘贴你的Token",
+          "autoGrow": true
+        },
+        {
+          "id": "mf_username",
+          "name": "账号",
+          "val": "",
+          "type": "text",
+          "desc": "淘米账号/手机号（仅显示区分多账号）",
+          "placeholder": "选填",
+          "autoGrow": true
+        }
+      ]
     }
   ]
 }
