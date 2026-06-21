@@ -13,7 +13,7 @@
   3. 之后定时签到就无需再管了
 
   [rewrite_local]
-  ^https://mifan\\.61\\.com/api/v1/login url script-response-body https://raw.githubusercontent.com/1009394958/mifan-checkin/main/mifan_checkin.js
+  ^https://mifan\.61\.com/api/v1/login url script-response-body https://raw.githubusercontent.com/1009394958/mifan-checkin/main/mifan_checkin.js
 
   [mitm]
   hostname = mifan.61.com
@@ -42,6 +42,7 @@ const MF_TOKEN = "";
 
 const BASE_URL = "https://mifan.61.com/api/v1/";
 const STORAGE_KEY_TOKEN = "mf_token";
+const BOXJS_KEY_TOKEN = "boxjs.mifan.checkin.mf_token";
 
 /**
  * 判断当前运行模式
@@ -56,14 +57,20 @@ const STORAGE_KEY_TOKEN = "mf_token";
       const body = JSON.parse($response.body);
       if (body.code === 200 && body.token) {
         const token = body.token;
-        // 保存到 $prefs（任务脚本会从这里读取）
+        // 追加保存到 BoxJS（BoxJS 面板直接可见）
+        const existing = $prefs.valueForKey(BOXJS_KEY_TOKEN) || "";
+        const tokens = existing.split("\n").filter(t => t.trim());
+        if (!tokens.includes(token)) {
+          tokens.push(token);
+          $prefs.setValueForKey(tokens.join("\n"), BOXJS_KEY_TOKEN);
+        }
+        // 同时写回老 key 保持兼容
         $prefs.setValueForKey(token, STORAGE_KEY_TOKEN);
-        console.log("✓ Token: " + token.substring(0, 30) + "...");
-        // 通知中显示完整 Token，方便复制到 BoxJS
+        console.log("✓ Token 已保存到 BoxJS: " + token.substring(0, 30) + "...");
         $notify(
           "米饭 Token 捕获 ✓",
-          "已自动保存，可复制到 BoxJS 管理",
-          token
+          "已自动保存到 BoxJS 面板",
+          "现有 " + tokens.length + " 个 Token"
         );
       } else {
         console.log("ℹ 该响应无 token，跳过");
@@ -180,12 +187,16 @@ function getTokenList() {
     if (argObj.token) return [argObj.token];
   }
 
-  // 2. 从 BoxJS textarea 获取（多行分隔）
-  const boxjsToken = $prefs.valueForKey(STORAGE_KEY_TOKEN) || "";
-  const boxjsTokens = boxjsToken.split("\n").map(t => t.trim()).filter(t => t);
+  // 2. 从 BoxJS 存储获取（MITM 捕获或 BoxJS 面板写入）
+  const boxjsVal = $prefs.valueForKey(BOXJS_KEY_TOKEN) || "";
+  const boxjsTokens = boxjsVal.split("\n").map(t => t.trim()).filter(t => t);
   if (boxjsTokens.length > 0) return boxjsTokens;
 
-  // 3. 从 MF_TOKEN 常量获取
+  // 3. 从老 key 获取（兼容旧版本）
+  const oldVal = $prefs.valueForKey(STORAGE_KEY_TOKEN) || "";
+  if (oldVal) return [oldVal];
+
+  // 4. 从 MF_TOKEN 常量获取
   if (MF_TOKEN) {
     return MF_TOKEN.split(/[, ]+/).filter(t => t.trim());
   }
