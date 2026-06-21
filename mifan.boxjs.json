@@ -1,7 +1,6 @@
 {
   "id": "com.mifan.checkin",
   "name": "米饭签到",
-  "description": "米饭(mifan.61.com)每日签到 - Token管理",
   "author": "@1009394958",
   "icon": "https://mifan.61.com/favicon.ico",
   "repo": "https://github.com/1009394958/mifan-checkin",
@@ -9,9 +8,8 @@
     {
       "id": "mifan.checkin",
       "name": "米饭签到",
-      "keys": ["mf_token", "mf_username"],
-      "author": "@1009394958",
-      "repo": "https://github.com/1009394958/mifan-checkin",
+      "desc": "米饭(mifan.61.com)每日签到 - Token管理",
+      "keys": ["mf_token"],
       "icons": [
         "https://mifan.61.com/favicon.ico"
       ],
@@ -33,18 +31,8 @@
           "name": "登录Token",
           "val": "",
           "type": "text",
-          "desc": "从浏览器 localStorage.MF_AUTH 获取，或配置 MITM 自动捕获",
           "placeholder": "粘贴你的Token",
-          "autoGrow": true
-        },
-        {
-          "id": "mf_username",
-          "name": "账号",
-          "val": "",
-          "type": "text",
-          "desc": "淘米账号/手机号（仅显示区分多账号）",
-          "placeholder": "选填",
-          "autoGrow": true
+          "desc": "从浏览器 localStorage.MF_AUTH 获取，或配置 MITM 自动捕获"
         }
       ]
     }
