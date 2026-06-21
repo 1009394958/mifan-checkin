@@ -18,7 +18,9 @@
   [mitm]
   hostname = mifan.61.com
 
-  ★ 如果已有 token，也可以直接在下方 MF_TOKEN 中填写，跳过捕获步骤
+【BoxJS 面板管理 Token】
+  在 BoxJS 中订阅以下链接，用网页管理 Token，无需改脚本：
+  https://raw.githubusercontent.com/1009394958/mifan-checkin/main/mifan.boxjs.json
 
 【多账号】
   [task_local]
@@ -29,7 +31,7 @@
 // ==================== 配置区域 ====================
 
 // ★ 已有 token 直接填这里（可从浏览器 localStorage.MF_AUTH 获取）
-// ★ 不想手动填？配置上方 rewrite + MITM，登录一次自动捕获
+// ★ 推荐改用 BoxJS 管理，则此处留空
 const MF_TOKEN = "";
 
 // ==================== 以下无需修改 ====================
@@ -130,8 +132,9 @@ async function main() {
   console.log("===== 米饭签到 for Quantumult X =====");
   console.log("时间: " + getNow());
 
-  // 获取 token：args > 脚本变量 > 持久化存储
+  // 解析参数
   let token = "";
+  let action = "";  // ""=普通签到, "status"=仅查状态, "sign"=强制签到
 
   if (typeof $argument !== "undefined" && $argument) {
     const argObj = {};
@@ -140,22 +143,25 @@ async function main() {
       argObj[k] = v;
     });
     token = argObj.token || "";
+    action = argObj.action || "";
   }
+
+  // 获取 token：args > BoxJS/mf_token > 脚本变量 > 持久化存储
   if (!token) token = MF_TOKEN;
   if (!token) token = $prefs.valueForKey(STORAGE_KEY_TOKEN) || "";
 
   if (!token) {
-    const msg = "未配置 Token，请按以下步骤操作：\n"
-      + "1. 在 Quantumult X 配置中添加 rewrite + MITM（见脚本头部注释）\n"
-      + "2. 在 Safari 中登录 https://mifan.61.com/dist/index.html\n"
-      + "3. Quantumult X 会自动捕获 token\n"
-      + "4. 之后定时签到即可正常运行";
+    const msg = "未配置 Token，三种方式任选：\n"
+      + "1. BoxJS 面板：订阅 mifan.boxjs.json，在网页中填入 Token\n"
+      + "2. MITM 自动捕获：配置上面的 rewrite + MITM，登录一次自动抓取\n"
+      + "3. 直接编辑脚本：在 MF_TOKEN 变量中填入 Token";
     console.log("✗ " + msg);
     $notify("米饭签到 ❌", "缺少 Token", msg);
     return;
   }
 
   console.log("ℹ Token: " + token.substring(0, 20) + "...");
+  if (action) console.log("ℹ 动作: " + action);
 
   // 验证 token + 查签到状态
   let signed = false;
@@ -166,12 +172,30 @@ async function main() {
     console.log("✗ Token 无效: " + e.message);
     $prefs.removeValueForKey(STORAGE_KEY_TOKEN);
     $notify("米饭签到 ❌", "Token 无效",
-      "请在浏览器重新登录后，让 Quantumult X 重新捕获 token");
+      "请在 BoxJS 中更新 Token，或重新登录让 MITM 捕获");
     return;
   }
 
-  // 已签到
-  if (signed) {
+  // 仅检查状态（BoxJS 面板点"检查签到状态"时）
+  if (action === "status") {
+    try {
+      const history = await getSignHistory(token);
+      const signedDays = history.filter(r => r.state).length;
+      const total = history.length;
+      const statusStr = signed ? "今日已签到 ✓" : "今日未签到";
+      $notify("米饭签到 ℹ",
+        statusStr,
+        "近期 " + total + " 天已签 " + signedDays + " 天");
+    } catch (_) {
+      $notify("米饭签到 ℹ",
+        signed ? "今日已签到 ✓" : "今日未签到",
+        "时间: " + getNow());
+    }
+    return;
+  }
+
+  // 已签到且非强制签到 -> 跳过
+  if (signed && action !== "sign") {
     try {
       const history = await getSignHistory(token);
       const signedDays = history.filter(r => r.state).length;
@@ -181,6 +205,11 @@ async function main() {
       $notify("米饭签到 ✓", "今日已签到", "时间: " + getNow());
     }
     return;
+  }
+
+  // 强制签到（已签到也再签一次）或正常签到
+  if (signed && action === "sign") {
+    console.log("ℹ 强制签到模式，忽略已签到状态");
   }
 
   // 执行签到
