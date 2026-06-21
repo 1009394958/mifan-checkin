@@ -73,11 +73,7 @@ const BOXJS_KEY_TOKEN = "boxjs.mifan.checkin.mf_token";
         // 同时写回老 key 保持兼容
         $prefs.setValueForKey(t, STORAGE_KEY_TOKEN);
         console.log("✓ Token 已保存到 BoxJS: " + t.substring(0, 30) + "...");
-        $notify(
-          "米饭 Token 捕获 ✓",
-          "已自动保存到 BoxJS 面板",
-          "现有 " + tokens.length + " 个 Token"
-        );
+        $notify("米饭 Token 捕获 ✓", "已自动保存到 BoxJS 面板", "现有 " + tokens.length + " 个 Token");
       } else {
         console.log("ℹ 未识别到 Token，完整响应: " + rawBody.substring(0, 500));
         $notify("米饭 Token 捕获 ⚠", "响应格式未识别", "请从浏览器 localStorage 获取 Token");
@@ -118,13 +114,32 @@ function getNow() {
 function request(method, path, token) {
   return new Promise((resolve, reject) => {
     const url = BASE_URL.replace(/\/$/, "") + "/" + path.replace(/^\//, "");
-    const cb = (error, resp, data) => {
-      if (error) { reject(error); return; }
-      try { resolve(JSON.parse(data)); }
-      catch (e) { resolve({ code: -1, data: data }); }
+    const params = {
+      url: url,
+      headers: getHeaders(token),
+      timeout: 15,
+      method: method
     };
-    if (method === "GET") $httpClient.get({ url, headers: getHeaders(token), timeout: 15 }, cb);
-    else $httpClient.post({ url, headers: getHeaders(token), timeout: 15 }, cb);
+    // 优先使用 $task.fetch（兼容性更广），回退 $httpClient
+    if (typeof $task !== "undefined" && $task.fetch) {
+      $task.fetch(params).then(
+        resp => {
+          try { resolve(JSON.parse(resp.body)); }
+          catch (e) { resolve({ code: -1, data: resp.body }); }
+        },
+        reason => reject(reason.error || reason)
+      );
+    } else if (typeof $httpClient !== "undefined") {
+      const cb = (error, resp, data) => {
+        if (error) { reject(error); return; }
+        try { resolve(JSON.parse(data)); }
+        catch (e) { resolve({ code: -1, data: data }); }
+      };
+      if (method === "GET") $httpClient.get(params, cb);
+      else $httpClient.post(params, cb);
+    } else {
+      reject("无法找到网络请求 API（$task 和 $httpClient 均不可用）");
+    }
   });
 }
 
@@ -146,9 +161,6 @@ async function getSignHistory(token) {
   throw new Error("[" + data.code + "] " + (data.err_desc || data.data || "查询失败"));
 }
 
-/**
- * 处理单个账号的签到
- */
 async function processAccount(token, index) {
   const prefix = "账号" + (index + 1);
   console.log("===== " + prefix + " =====");
@@ -184,7 +196,6 @@ async function processAccount(token, index) {
 }
 
 function getTokenList() {
-  // 1. 从 args 获取
   if (typeof $argument !== "undefined" && $argument) {
     const argObj = {};
     $argument.split("&").forEach(pair => {
@@ -194,16 +205,13 @@ function getTokenList() {
     if (argObj.token) return [argObj.token.trim()];
   }
 
-  // 2. 从 BoxJS 存储获取（MITM 捕获或 BoxJS 面板写入）
   const boxjsVal = $prefs.valueForKey(BOXJS_KEY_TOKEN) || "";
   const boxjsTokens = boxjsVal.split("\n").map(t => t.trim()).filter(t => t);
   if (boxjsTokens.length > 0) return boxjsTokens;
 
-  // 3. 从老 key 获取（兼容旧版本）
   const oldVal = $prefs.valueForKey(STORAGE_KEY_TOKEN) || "";
   if (oldVal) return [oldVal.trim()];
 
-  // 4. 从 MF_TOKEN 常量获取
   if (MF_TOKEN) {
     return MF_TOKEN.split(/[, ]+/).map(t => t.trim()).filter(t => t);
   }
