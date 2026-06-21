@@ -21,16 +21,20 @@
 【BoxJS 面板管理 Token】
   在 BoxJS 中订阅以下链接，用网页管理 Token，无需改脚本：
   https://raw.githubusercontent.com/1009394958/mifan-checkin/main/mifan.boxjs.json
+  在 BoxJS 中一行一个 Token，支持多账户自动循环签到
 
-【多账号】
+【多账号 - 传统方式（按任务分开）】
   [task_local]
   0 30 9 * * * script-path=mifan_checkin.js, tag=米饭-大号, args=token=xxx
   0 31 9 * * * script-path=mifan_checkin.js, tag=米饭-小号, args=token=yyy
+
+【多账号 - 推荐方式（一个任务全搞定）】
+  在 BoxJS 中将两个 Token 分两行填写即可，无需重复任务
 */
 
 // ==================== 配置区域 ====================
 
-// ★ 已有 token 直接填这里（可从浏览器 localStorage.MF_AUTH 获取）
+// ★ 已有 token 直接填这里，多账户用 , 或空格分隔
 // ★ 推荐改用 BoxJS 管理，则此处留空
 const MF_TOKEN = "";
 
@@ -54,13 +58,15 @@ const STORAGE_KEY_TOKEN = "mf_token";
 
       if (body.code === 200 && body.token) {
         const token = body.token;
-        $prefs.setValueForKey(token, STORAGE_KEY_TOKEN);
+        // 追加保存，不覆盖已有 token
+        const existing = $prefs.valueForKey(STORAGE_KEY_TOKEN) || "";
+        const tokens = existing.split("\n").filter(t => t.trim());
+        if (!tokens.includes(token)) {
+          tokens.push(token);
+          $prefs.setValueForKey(tokens.join("\n"), STORAGE_KEY_TOKEN);
+        }
         console.log("✓ Token 捕获成功并已持久化: " + token.substring(0, 30) + "...");
-        $notify(
-          "米饭 Token 捕获 ✓",
-          "登录 Token 已自动保存",
-          "现在可以正常使用定时签到了"
-        );
+        $notify("米饭 Token 捕获 ✓", "登录 Token 已自动保存", "现有 " + tokens.length + " 个 Token 在库");
       } else {
         console.log("ℹ 该响应无 token，跳过: code=" + body.code);
       }
@@ -128,29 +134,74 @@ async function getSignHistory(token) {
   throw new Error(data.data || "查询失败");
 }
 
-async function main() {
-  console.log("===== 米饭签到 for Quantumult X =====");
-  console.log("时间: " + getNow());
+/**
+ * 处理单个账号的签到
+ */
+async function processAccount(token, index) {
+  const prefix = "账号" + (index + 1);
+  console.log("===== " + prefix + " =====");
 
-  // 解析参数
-  let token = "";
-  let action = "";  // ""=普通签到, "status"=仅查状态, "sign"=强制签到
+  let signed = false;
+  try {
+    signed = await getSignStatus(token);
+    console.log("ℹ " + prefix + " 签到状态: " + (signed ? "已签到 ✓" : "未签到"));
+  } catch (e) {
+    console.log("✗ " + prefix + " Token 无效: " + e.message);
+    return prefix + ": ❌ Token 无效";
+  }
 
+  if (signed) {
+    try {
+      const history = await getSignHistory(token);
+      const signedDays = history.filter(r => r.state).length;
+      return prefix + ": ✓ 已签到（近 " + history.length + " 天签 " + signedDays + " 天）";
+    } catch (_) {
+      return prefix + ": ✓ 今日已签到";
+    }
+  }
+
+  try {
+    const gold = await doSign(token);
+    const goldStr = gold > 0 ? " +" + gold + "米粒" : "";
+    console.log("✓ " + prefix + " 签到成功" + goldStr);
+    return prefix + ": ✓ 签到成功" + goldStr;
+  } catch (e) {
+    console.log("✗ " + prefix + " 签到失败: " + e.message);
+    return prefix + ": ❌ 签到失败";
+  }
+}
+
+function getTokenList() {
+  // 1. 从 args 获取
   if (typeof $argument !== "undefined" && $argument) {
     const argObj = {};
     $argument.split("&").forEach(pair => {
       const [k, v] = pair.split("=");
       argObj[k] = v;
     });
-    token = argObj.token || "";
-    action = argObj.action || "";
+    if (argObj.token) return [argObj.token];
   }
 
-  // 获取 token：args > BoxJS/mf_token > 脚本变量 > 持久化存储
-  if (!token) token = MF_TOKEN;
-  if (!token) token = $prefs.valueForKey(STORAGE_KEY_TOKEN) || "";
+  // 2. 从 BoxJS textarea 获取（多行分隔）
+  const boxjsToken = $prefs.valueForKey(STORAGE_KEY_TOKEN) || "";
+  const boxjsTokens = boxjsToken.split("\n").map(t => t.trim()).filter(t => t);
+  if (boxjsTokens.length > 0) return boxjsTokens;
 
-  if (!token) {
+  // 3. 从 MF_TOKEN 常量获取
+  if (MF_TOKEN) {
+    return MF_TOKEN.split(/[, ]+/).filter(t => t.trim());
+  }
+
+  return [];
+}
+
+async function main() {
+  console.log("===== 米饭签到 for Quantumult X =====");
+  console.log("时间: " + getNow());
+
+  const tokens = getTokenList();
+
+  if (tokens.length === 0) {
     const msg = "未配置 Token，三种方式任选：\n"
       + "1. BoxJS 面板：订阅 mifan.boxjs.json，在网页中填入 Token\n"
       + "2. MITM 自动捕获：配置上面的 rewrite + MITM，登录一次自动抓取\n"
@@ -160,67 +211,26 @@ async function main() {
     return;
   }
 
-  console.log("ℹ Token: " + token.substring(0, 20) + "...");
-  if (action) console.log("ℹ 动作: " + action);
+  console.log("ℹ 共发现 " + tokens.length + " 个 Token");
 
-  // 验证 token + 查签到状态
-  let signed = false;
-  try {
-    signed = await getSignStatus(token);
-    console.log("ℹ 签到状态: " + (signed ? "已签到 ✓" : "未签到"));
-  } catch (e) {
-    console.log("✗ Token 无效: " + e.message);
-    $prefs.removeValueForKey(STORAGE_KEY_TOKEN);
-    $notify("米饭签到 ❌", "Token 无效",
-      "请在 BoxJS 中更新 Token，或重新登录让 MITM 捕获");
-    return;
-  }
-
-  // 仅检查状态（BoxJS 面板点"检查签到状态"时）
-  if (action === "status") {
-    try {
-      const history = await getSignHistory(token);
-      const signedDays = history.filter(r => r.state).length;
-      const total = history.length;
-      const statusStr = signed ? "今日已签到 ✓" : "今日未签到";
-      $notify("米饭签到 ℹ",
-        statusStr,
-        "近期 " + total + " 天已签 " + signedDays + " 天");
-    } catch (_) {
-      $notify("米饭签到 ℹ",
-        signed ? "今日已签到 ✓" : "今日未签到",
-        "时间: " + getNow());
+  const results = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const result = await processAccount(tokens[i], i);
+    results.push(result);
+    if (i < tokens.length - 1) {
+      await new Promise(r => setTimeout(r, 1000));
     }
-    return;
   }
 
-  // 已签到且非强制签到 -> 跳过
-  if (signed && action !== "sign") {
-    try {
-      const history = await getSignHistory(token);
-      const signedDays = history.filter(r => r.state).length;
-      $notify("米饭签到 ✓", "今日已签到",
-        "近期 " + history.length + " 天已签 " + signedDays + " 天");
-    } catch (_) {
-      $notify("米饭签到 ✓", "今日已签到", "时间: " + getNow());
-    }
-    return;
-  }
+  const successCount = results.filter(r => r.includes("✓")).length;
+  const failCount = results.filter(r => r.includes("❌")).length;
+  const title = "米饭签到 " + (failCount === 0 ? "✓" : "⚠");
+  const body = results.join("\n");
+  const subtitle = successCount + "/" + tokens.length + " 成功" +
+    (failCount > 0 ? "，" + failCount + " 失败" : "");
 
-  // 强制签到（已签到也再签一次）或正常签到
-  if (signed && action === "sign") {
-    console.log("ℹ 强制签到模式，忽略已签到状态");
-  }
+  console.log("===== 汇总 =====");
+  console.log(body);
 
-  // 执行签到
-  try {
-    const gold = await doSign(token);
-    $prefs.setValueForKey(token, STORAGE_KEY_TOKEN);
-    const goldMsg = gold > 0 ? "获得 " + gold + " 米粒 ✨" : "";
-    console.log("✓ 签到成功 " + goldMsg);
-    $notify("米饭签到 ✓", "签到成功", goldMsg + "时间: " + getNow());
-  } catch (e) {
-    console.log("✗ 签到失败: " + e.message);
-    $notify("米饭签到 ❌", "签到失败", e.message);
-  }
+  $notify(title, subtitle, body);
 }
