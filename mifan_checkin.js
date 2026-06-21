@@ -13,7 +13,7 @@
   3. 之后定时签到就无需再管了
 
   [rewrite_local]
-  ^https://mifan\.61\.com/api/v1/login url script-response-body https://raw.githubusercontent.com/1009394958/mifan-checkin/main/mifan_checkin.js
+  ^https://mifan\\.61\\.com/api/v1/login url script-response-body https://raw.githubusercontent.com/1009394958/mifan-checkin/main/mifan_checkin.js
 
   [mitm]
   hostname = mifan.61.com
@@ -54,24 +54,22 @@ const STORAGE_KEY_TOKEN = "mf_token";
     console.log("===== 米饭 Token 捕获 =====");
     try {
       const body = JSON.parse($response.body);
-      console.log("响应: " + JSON.stringify(body).substring(0, 200));
-
       if (body.code === 200 && body.token) {
         const token = body.token;
-        // 追加保存，不覆盖已有 token
-        const existing = $prefs.valueForKey(STORAGE_KEY_TOKEN) || "";
-        const tokens = existing.split("\n").filter(t => t.trim());
-        if (!tokens.includes(token)) {
-          tokens.push(token);
-          $prefs.setValueForKey(tokens.join("\n"), STORAGE_KEY_TOKEN);
-        }
-        console.log("✓ Token 捕获成功并已持久化: " + token.substring(0, 30) + "...");
-        $notify("米饭 Token 捕获 ✓", "登录 Token 已自动保存", "现有 " + tokens.length + " 个 Token 在库");
+        // 保存到 $prefs（任务脚本会从这里读取）
+        $prefs.setValueForKey(token, STORAGE_KEY_TOKEN);
+        console.log("✓ Token: " + token.substring(0, 30) + "...");
+        // 通知中显示完整 Token，方便复制到 BoxJS
+        $notify(
+          "米饭 Token 捕获 ✓",
+          "已自动保存，可复制到 BoxJS 管理",
+          token
+        );
       } else {
-        console.log("ℹ 该响应无 token，跳过: code=" + body.code);
+        console.log("ℹ 该响应无 token，跳过");
       }
     } catch (e) {
-      console.log("✗ 解析响应失败: " + e.message);
+      console.log("✗ 解析失败: " + e.message);
     }
     $done({});
     return;
