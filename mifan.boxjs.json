@@ -8,7 +8,7 @@
     {
       "id": "mifan.checkin",
       "name": "米饭签到",
-      "desc": "米饭(mifan.61.com)每日签到 - Token管理，多账户用换行分隔",
+      "desc": "米饭(mifan.61.com)每日签到 - Token/凭据管理，一行一个，多账户自动循环签到",
       "keys": ["mf_token"],
       "icons": [
         "https://mifan.61.com/favicon.ico"
@@ -16,12 +16,12 @@
       "settings": [
         {
           "id": "mf_token",
-          "name": "登录Token（多账户请换行）",
+          "name": "Token / 账号密码（多账户请换行）",
           "val": "",
           "type": "textarea",
-          "placeholder": "第一行: 账号1的Token\n第二行: 账号2的Token",
+          "placeholder": "第一行: Token（7天有效，脚本会自动续期）\n第二行: 账号----密码（推荐，永久有效）",
           "autoGrow": true,
-          "desc": "一行一个Token，支持多账户"
+          "desc": "一行一个。支持两种格式：\n1. 纯 Token：剩余不足48小时自动重新登录续期\n2. 账号----密码：每次运行自动登录，Token 永远新鲜（推荐）"
         }
       ]
     }
